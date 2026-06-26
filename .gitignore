@@ -1,0 +1,8 @@
+config.json
+.venv/
+__pycache__/
+*.pyc
+exports/
+.pytest_cache/
+.DS_Store
+.claude/

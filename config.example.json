@@ -1,0 +1,26 @@
+{
+  "provider": "anthropic",
+  "model": "",
+  "base_url": "",
+
+  "anthropic_api_key": "",
+  "openrouter_api_key": "",
+  "openai_api_key": "",
+  "deepseek_api_key": "",
+  "gemini_api_key": "",
+  "api_key": "",
+
+  "audio_device_index": null,
+  "whisper_model_size": "small",
+  "whisper_cpu_threads": 2,
+  "summarize_interval_seconds": 300,
+  "transcript_window_seconds": 300,
+  "max_points_per_slide": 6,
+  "second_screen_index": 1,
+  "church_name": "",
+
+  "theme": "Midnight",
+  "font_scale": 1.0,
+  "background_image": "",
+  "logo_image": ""
+}

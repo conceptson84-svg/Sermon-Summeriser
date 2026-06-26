@@ -1,0 +1,14 @@
+# Core runtime deps. Python 3.11+ recommended (3.9 works for tests, but the AI
+# libs prefer newer). Install into a venv:
+#   python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+anthropic>=0.40          # provider: anthropic (Claude direct)
+openai>=1.40             # provider: openrouter / openai / deepseek / gemini
+faster-whisper>=1.0
+sounddevice>=0.4
+numpy>=1.24
+python-pptx>=0.6.23
+reportlab>=4.0         # direct PDF export (no LibreOffice needed)
+pillow>=10.0           # background images on the slide display
+
+# Dev / test
+pytest>=8.0
