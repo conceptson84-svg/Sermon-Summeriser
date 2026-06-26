@@ -12,3 +12,8 @@ build/
 dist/
 .venv-build/
 *.spec.bak
+
+# generated icons (keep assets/icon.png, regenerate the rest)
+assets/icon.icns
+assets/icon.ico
+assets/*.iconset

@@ -9,6 +9,9 @@ call .venv-build\Scripts\activate
 python -m pip install --upgrade pip
 pip install -r requirements-dev.txt
 
+echo ==^> Generating app icon (if assets\icon.png exists)
+python make_icon.py
+
 echo ==^> Building with PyInstaller
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist

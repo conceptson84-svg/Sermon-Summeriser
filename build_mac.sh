@@ -10,6 +10,9 @@ source .venv-build/bin/activate
 pip install --upgrade pip
 pip install -r requirements-dev.txt
 
+echo "==> Generating app icon (if assets/icon.png exists)"
+python make_icon.py
+
 echo "==> Building with PyInstaller"
 rm -rf build dist
 pyinstaller sermon-summarizer.spec
