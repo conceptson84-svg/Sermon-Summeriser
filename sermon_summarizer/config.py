@@ -9,8 +9,61 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+APP_DIR_NAME = "SermonSummarizer"
+
+
+def app_data_dir() -> Path:
+    """Per-OS, user-writable directory for config (works inside a packaged app,
+    where the app folder itself is read-only)."""
+    if sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    elif os.name == "nt":
+        base = Path(os.environ.get("APPDATA", Path.home()))
+    else:
+        base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    d = base / APP_DIR_NAME
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def default_config_path() -> Path:
+    """Use ./config.json when running from source (dev), otherwise the
+    user-data dir (packaged app)."""
+    local = Path("config.json")
+    if local.exists():
+        return local
+    return app_data_dir() / "config.json"
+
+
+def default_exports_dir() -> Path:
+    """Where saved PDFs/PPTX land by default — somewhere the volunteer can find."""
+    return Path.home() / "Documents" / APP_DIR_NAME
+
+
+def resource_path(name: str) -> Path:
+    """Locate a bundled data file both from source and inside a PyInstaller
+    bundle (which unpacks data into sys._MEIPASS)."""
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        return Path(base) / name
+    return Path(__file__).resolve().parent.parent / name
+
+
+def ensure_config(path: str | os.PathLike) -> None:
+    """Create config.json from the bundled example on first run."""
+    path = Path(path)
+    if path.exists():
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    example = resource_path("config.example.json")
+    if example.exists():
+        path.write_text(example.read_text())
+    else:
+        Config().save(path)
 
 
 @dataclass

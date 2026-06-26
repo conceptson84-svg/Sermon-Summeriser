@@ -6,3 +6,9 @@ exports/
 .pytest_cache/
 .DS_Store
 .claude/
+
+# packaging build artifacts
+build/
+dist/
+.venv-build/
+*.spec.bak
