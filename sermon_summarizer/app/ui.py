@@ -288,6 +288,7 @@ class ControlPanel:
 
         # Manual point editor: add a new point, or select one + Edit to change it.
         self._edit_index = None
+        self._edit_slide = None
         erow = tk.Frame(sl, bg=UI["panel"]); erow.pack(fill="x")
         self._label(erow, "Point:").pack(side="left")
         self._point_var = tk.StringVar()
@@ -351,9 +352,24 @@ class ControlPanel:
         else:
             self.set_status(f"New content on slide {deck.slide_count} — press Live to catch up")
 
-    def _refresh(self, deck):
+    def _current_slide(self):
+        """The slide currently shown on the TV — the latest when live, or the
+        one being reviewed. The manual editor and preview operate on THIS slide
+        so what you edit is what you see."""
+        deck = self._controller.deck
+        if deck.slide_count == 0:
+            return None
+        if self._view_index is None:
+            return deck.latest_slide()
+        idx = min(self._view_index, deck.slide_count - 1)
+        return deck.slides[idx]
+
+    def _refresh(self, deck=None):
         self._listbox.delete(0, "end")
-        for pt in deck.latest_slide().points:
+        slide = self._current_slide()
+        if slide is None:
+            return
+        for pt in slide.points:
             label = pt.text + (f"   ({pt.scripture})" if pt.scripture else "")
             self._listbox.insert("end", label)
 
@@ -599,11 +615,11 @@ class ControlPanel:
         if not sel:
             return
         idx = sel[0]
-        slide = self._controller.deck.latest_slide()
-        if 0 <= idx < len(slide.points):
+        slide = self._current_slide()
+        if slide is not None and 0 <= idx < len(slide.points):
             del slide.points[idx]
-            self._refresh(self._controller.deck)
-            self._slide_window.update_slide(slide)
+            self._refresh()
+            self._render_view()  # re-render the current view, keep nav context
         self._clear_point_editor()
 
     # --- manual point add / edit ------------------------------------------
@@ -623,20 +639,25 @@ class ControlPanel:
             self.set_status("Type a point first")
             return
         verse, invalid = self._validated_verse(self._verse_var.get())
-        slide = self._controller.deck.latest_slide()
 
-        if self._edit_index is not None and 0 <= self._edit_index < len(slide.points):
-            slide.points[self._edit_index] = Point(text=text, scripture=verse)
+        # Edit: replace the exact point on the exact slide captured at selection
+        # time (pinned so a background summary cycle can't shift it). Add: append
+        # to the slide the operator is currently viewing — never spawn a new
+        # slide that would wipe the live display.
+        if (self._edit_slide is not None and self._edit_index is not None
+                and 0 <= self._edit_index < len(self._edit_slide.points)):
+            self._edit_slide.points[self._edit_index] = Point(text=text, scripture=verse)
             action = "updated"
         else:
-            self._controller.deck.add_point(Point(text=text, scripture=verse), force=True)
+            target = self._current_slide()
+            if target is None:
+                self._controller.deck.add_point(Point(text=text, scripture=verse), force=True)
+            else:
+                self._controller.deck.add_manual(Point(text=text, scripture=verse), slide=target)
             action = "added"
 
-        self._refresh(self._controller.deck)
-        if self._view_index is None:
-            self._render_view()
-        else:
-            self._slide_window.update_slide(slide)
+        self._refresh()
+        self._render_view()  # re-render the CURRENT view; never collapse to 1/1
         note = " (verse not recognized, omitted)" if invalid else ""
         self.set_status(f"Point {action}{note}")
         self._clear_point_editor()
@@ -647,12 +668,13 @@ class ControlPanel:
             self.set_status("Select a point in the list to edit")
             return
         idx = sel[0]
-        slide = self._controller.deck.latest_slide()
-        if not (0 <= idx < len(slide.points)):
+        slide = self._current_slide()
+        if slide is None or not (0 <= idx < len(slide.points)):
             return
         pt = slide.points[idx]
         self._point_var.set(pt.text)
         self._verse_var.set(pt.scripture or "")
+        self._edit_slide = slide       # pin the exact slide being edited
         self._edit_index = idx
         self._add_btn.config(text="Update point")
         self.set_status("Editing — change the text and click Update point")
@@ -661,6 +683,7 @@ class ControlPanel:
         self._point_var.set("")
         self._verse_var.set("")
         self._edit_index = None
+        self._edit_slide = None
         self._add_btn.config(text="Add point")
 
     def _fullscreen_slide(self):

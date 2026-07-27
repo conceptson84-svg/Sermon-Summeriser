@@ -114,6 +114,19 @@ class Deck:
         """Add several points. Returns how many were actually added (non-dupe)."""
         return sum(1 for p in points if self.add_point(p))
 
+    def add_manual(self, point: Point, slide: "Slide | None" = None) -> bool:
+        """Append a manually-typed point to a SPECIFIC slide (default: the
+        current one) WITHOUT rolling to a new slide. Used by the control panel
+        so a hand-added point lands on the slide the operator is looking at and
+        never spawns a fresh slide that hijacks the live display."""
+        if not point.text.strip():
+            return False
+        target = slide if slide is not None else self.current
+        self._seen.add(point.key())
+        self._token_sets.append(_content_tokens(point.text))
+        target.points.append(point)
+        return True
+
     def latest_slide(self) -> Slide:
         """The slide currently shown on the TV / NDI feed."""
         return self.current

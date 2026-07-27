@@ -85,6 +85,28 @@ def test_force_add_bypasses_dedupe():
     assert len(d.all_points()) == 2
 
 
+def test_add_manual_does_not_roll_or_lose_slides():
+    d = Deck()
+    # Fill the first slide and roll into a second.
+    for w in DISTINCT[:MAX_POINTS_PER_SLIDE + 1]:
+        d.add_point(Point(w))
+    assert d.slide_count == 2
+    first_slide = d.slides[0]
+    # Manually append to the FIRST (full) slide — must not create a new slide
+    # and must not disturb the existing slides.
+    assert d.add_manual(Point("hand added"), slide=first_slide) is True
+    assert d.slide_count == 2  # no new slide spawned
+    assert first_slide.points[-1].text == "hand added"
+    assert len(d.all_points()) == MAX_POINTS_PER_SLIDE + 2  # nothing lost
+
+
+def test_add_manual_defaults_to_current_slide():
+    d = Deck()
+    d.add_point(Point("faith"))
+    d.add_manual(Point("hope"))
+    assert [p.text for p in d.latest_slide().points] == ["faith", "hope"]
+
+
 def test_all_points_spans_slides():
     d = Deck()
     for i in range(MAX_POINTS_PER_SLIDE + 3):
