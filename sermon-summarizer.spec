@@ -17,6 +17,11 @@ WIN_ICON = "assets/icon.ico" if os.path.exists("assets/icon.ico") else None
 MAC_ICON = "assets/icon.icns" if os.path.exists("assets/icon.icns") else None
 
 datas = [("config.example.json", ".")]
+
+# Bundle the Bible DB if it's been built (build_bible_db.py). Published at the
+# package path so bible.lookup.default_db_path finds it inside the bundle.
+if os.path.exists("sermon_summarizer/bible/bible.sqlite"):
+    datas.append(("sermon_summarizer/bible/bible.sqlite", "sermon_summarizer/bible"))
 binaries = []
 hiddenimports = [
     "anthropic", "openai", "PIL", "reportlab", "pptx", "numpy",

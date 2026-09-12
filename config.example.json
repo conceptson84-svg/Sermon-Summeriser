@@ -22,5 +22,10 @@
   "theme": "Midnight",
   "font_scale": 1.0,
   "background_image": "",
-  "logo_image": ""
+  "logo_image": "",
+
+  "verse_display_enabled": true,
+  "bible_version": "WEB",
+  "verse_mode": "auto",
+  "verse_display_seconds": 25
 }

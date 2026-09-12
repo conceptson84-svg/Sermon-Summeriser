@@ -95,6 +95,12 @@ class Config:
     background_image: str = ""
     logo_image: str = ""
 
+    # Live Bible verse display
+    verse_display_enabled: bool = True
+    bible_version: str = "WEB"
+    verse_mode: str = "auto"          # "auto" | "manual"
+    verse_display_seconds: int = 25   # auto-return after this long
+
     _path: str = "config.json"  # remembered for save()
 
     @classmethod

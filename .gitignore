@@ -17,3 +17,6 @@ dist/
 assets/icon.icns
 assets/icon.ico
 assets/*.iconset
+
+# generated Bible DB (build with build_bible_db.py)
+sermon_summarizer/bible/bible.sqlite

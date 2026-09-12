@@ -118,6 +118,7 @@ self-service, and changes save automatically:
 | **Church** | Name shown on the slide header + PDF |
 | **Display** | Theme · Text size · Background image · **Blank screen** · Logo · Fullscreen |
 | **Timing** | Summarize-every interval · Context-window length |
+| **Bible verses** | Version (6 offline) · Auto/Manual mode · detected-verse approve list · manual look-up |
 | **Current slide** | Live preview · add/edit/delete a point by hand · Prev/Next/Live |
 | **Export & share** | **End Service → PDF** (pick the folder) · Copy · Save .txt · Email · WhatsApp |
 
@@ -141,6 +142,33 @@ pick the audio device → Test audio (green) → Start → speak → Summarize n
 both an editable `.pptx` and a printable `.pdf`. To send the summary to members,
 use **Copy**, **Save .txt**, **Email**, or **WhatsApp** (these share the text;
 attach the saved PDF manually if you want the formatted version).
+
+## Live Bible verses
+
+When the preacher cites a verse ("turn to Romans 8:28", "first Corinthians
+thirteen"), the app detects it from the live transcript and can display the full
+verse text on the TV within a few seconds.
+
+- **6 offline versions** bundled: WEB (default), KJV, ASV, YLT, BBE, Douay-Rheims
+  — all public domain, no internet needed. (NIV/ESV/NLT are copyrighted and can't
+  be bundled; online fetch is a planned v2.)
+- **Auto or Manual mode:** in Auto, high-confidence detections display and
+  auto-return to the summary after a set time; low-confidence ones (and
+  everything in Manual mode) go to an approve list so a mis-heard reference never
+  auto-hits the broadcast.
+- **Manual look-up:** type any reference to display it instantly.
+- **Export:** every shown verse is added to a "Scriptures referenced" section in
+  the PDF/text summary.
+
+**Build the verse database first** (needs internet once, downloads public-domain
+text and builds a ~35 MB SQLite):
+
+```bash
+python build_bible_db.py
+```
+
+This produces `sermon_summarizer/bible/bible.sqlite`, which the packaging step
+bundles. Without it, verse display simply disables itself and the app still runs.
 
 ## OBS / NDI
 

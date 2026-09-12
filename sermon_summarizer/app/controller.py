@@ -35,6 +35,7 @@ class ServiceController:
         config,
         on_deck_update=None,
         on_status=None,
+        on_chunk=None,
         clock=time.monotonic,
     ):
         self._capture = capture
@@ -43,6 +44,7 @@ class ServiceController:
         self._cfg = config
         self._on_deck_update = on_deck_update or (lambda deck: None)
         self._on_status = on_status or (lambda msg: None)
+        self._on_chunk = on_chunk or (lambda text: None)
         self._clock = clock
 
         self.deck = Deck()
@@ -103,6 +105,7 @@ class ServiceController:
             text = self._transcriber.transcribe_pcm(chunk)
             if text:
                 self.window.add(text)
+                self._on_chunk(text)  # real-time verse detection hook
 
     def _summary_loop(self):  # pragma: no cover - timing loop
         # Read the interval from config each cycle so changes made in the UI

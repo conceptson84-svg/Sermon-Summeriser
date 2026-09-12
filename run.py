@@ -75,6 +75,7 @@ def main():
     panel._capture = capture
     controller._on_deck_update = panel.on_deck_update
     controller._on_status = panel.set_status
+    controller._on_chunk = panel.on_transcript_chunk  # real-time verse detection
     capture._on_status = panel.set_status
     transcriber._on_status = panel.set_status  # first-run model download feedback
 

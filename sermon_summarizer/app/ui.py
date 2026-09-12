@@ -69,6 +69,10 @@ class ControlPanel:
         self._key_show = False
         self._view_index = None
         self._dev_labels = {}
+        self._verse_after = None       # auto-clear timer for a shown verse
+        self._pending_verses = []      # DetectedVerse awaiting manual approval
+        self._shown_verses = []        # (reference, text, version) for the export
+        self._detector = self._make_detector()
         self._build()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -275,6 +279,46 @@ class ControlPanel:
         self._window_cb.set(self._label_for(self._WINDOW_CHOICES,
                                             self._cfg.transcript_window_seconds))
         self._window_cb.pack(side="left", padx=4)
+
+        # Bible verses (live verse display)
+        bv = self._section("Bible verses")
+        if self._detector is None or not self._detector.available:
+            self._label(bv, "Verse DB not bundled — run build_bible_db.py").pack(anchor="w")
+        else:
+            vrow = tk.Frame(bv, bg=UI["panel"]); vrow.pack(fill="x")
+            self._label(vrow, "Version:").pack(side="left")
+            from ..bible.lookup import BUNDLED_VERSIONS
+            self._bible_cb = self._combo(vrow, self._detector._lookup.versions(),
+                                         self._on_bible_version_change, width=6)
+            self._bible_cb.set(self._cfg.bible_version or "WEB")
+            self._bible_cb.pack(side="left", padx=(4, 12))
+            self._label(vrow, "Mode:").pack(side="left")
+            self._verse_mode_cb = self._combo(vrow, ["auto", "manual"],
+                                              self._on_verse_mode_change, width=7)
+            self._verse_mode_cb.set(self._cfg.verse_mode or "auto")
+            self._verse_mode_cb.pack(side="left", padx=4)
+
+            lrow = tk.Frame(bv, bg=UI["panel"]); lrow.pack(fill="x", pady=(6, 0))
+            self._label(lrow, "Look up:").pack(side="left")
+            self._verse_lookup_var = tk.StringVar()
+            le = tk.Entry(lrow, textvariable=self._verse_lookup_var, width=14, bg=UI["field"],
+                          fg=UI["fg"], insertbackground=UI["fg"], relief="flat",
+                          highlightthickness=1, highlightbackground=UI["border"])
+            le.pack(side="left", padx=4, ipady=3)
+            le.bind("<Return>", lambda e: self._manual_verse_lookup())
+            self._btn(lrow, "Show verse", self._manual_verse_lookup, kind="primary", side="left")
+            self._btn(lrow, "Clear TV", self._clear_verse, side="left", padx=6)
+
+            self._label(bv, "Detected (click Show to display):").pack(anchor="w", pady=(6, 0))
+            self._verse_listbox = tk.Listbox(bv, height=4, font=(FONT, 11), bg=UI["field"],
+                                             fg=UI["fg"], selectbackground=UI["accent"],
+                                             selectforeground="#ffffff", relief="flat",
+                                             highlightthickness=1, highlightbackground=UI["border"])
+            self._verse_listbox.pack(fill="x", pady=(2, 4))
+            self._verse_listbox.bind("<Double-Button-1>", lambda e: self._show_pending_verse())
+            prow = tk.Frame(bv, bg=UI["panel"]); prow.pack(fill="x")
+            self._btn(prow, "Show selected", self._show_pending_verse, side="left")
+            self._btn(prow, "Dismiss", self._dismiss_pending_verse, side="left", padx=6)
 
         # Current slide + navigation
         sl = self._section("Current slide")
@@ -690,6 +734,107 @@ class ControlPanel:
         if self._slide_window is not None:
             self._slide_window.toggle_fullscreen()
 
+    # --- live Bible verses -------------------------------------------------
+    def _make_detector(self):
+        if not getattr(self._cfg, "verse_display_enabled", True):
+            return None
+        try:
+            from ..bible.detector import VerseDetector
+            d = VerseDetector(version=self._cfg.bible_version or "WEB")
+            return d if d.available else None
+        except Exception as e:  # noqa: BLE001
+            log.warning("verse detector unavailable: %s", e)
+            return None
+
+    def on_transcript_chunk(self, text):
+        """Called from the audio thread for each transcript chunk — marshal to
+        the Tk thread and run detection there (parser+lookup are fast)."""
+        self.root.after(0, lambda: self._process_chunk(text))
+
+    def _process_chunk(self, text):
+        if self._detector is None or not self._detector.available:
+            return
+        for dv in self._detector.feed(text):
+            if self._cfg.verse_mode == "auto" and dv.high_confidence:
+                self._display_verse(dv.reference, dv.text, dv.version)
+            else:
+                self._queue_pending(dv)
+
+    def _queue_pending(self, dv):
+        self._pending_verses.append(dv)
+        self._verse_listbox.insert("end", f"{dv.reference}  ({dv.version})")
+
+    def _display_verse(self, reference, text, version):
+        if self._slide_window is None:
+            return
+        self._slide_window.show_verse(reference, text, version)
+        self._shown_verses.append((reference, text, version))
+        self.set_status(f"Showing {reference} ({version})")
+        # Auto-return after the configured duration (auto mode); cancel any prior.
+        if self._verse_after is not None:
+            self.root.after_cancel(self._verse_after)
+            self._verse_after = None
+        secs = int(getattr(self._cfg, "verse_display_seconds", 25) or 25)
+        if self._cfg.verse_mode == "auto":
+            self._verse_after = self.root.after(secs * 1000, self._clear_verse)
+
+    def _clear_verse(self):
+        if self._verse_after is not None:
+            self.root.after_cancel(self._verse_after)
+            self._verse_after = None
+        if self._slide_window is not None:
+            self._slide_window.clear_verse()
+
+    def _show_pending_verse(self):
+        sel = self._verse_listbox.curselection()
+        if not sel:
+            self.set_status("Select a detected verse first")
+            return
+        idx = sel[0]
+        if 0 <= idx < len(self._pending_verses):
+            dv = self._pending_verses[idx]
+            self._display_verse(dv.reference, dv.text, dv.version)
+
+    def _dismiss_pending_verse(self):
+        sel = self._verse_listbox.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        if 0 <= idx < len(self._pending_verses):
+            del self._pending_verses[idx]
+            self._verse_listbox.delete(idx)
+
+    def _manual_verse_lookup(self):
+        from ..slides.scripture import parse_reference
+        raw = self._verse_lookup_var.get().strip()
+        if not raw:
+            return
+        ref = parse_reference(raw)
+        if ref is None or self._detector is None:
+            self.set_status(f"Could not find '{raw}'")
+            return
+        version = self._cfg.bible_version or "WEB"
+        lookup = self._detector._lookup
+        verse = (lookup.get_verse(ref.book, ref.chapter, ref.verse, version)
+                 if ref.verse else lookup.get_first_verse(ref.book, ref.chapter, version))
+        if verse is None:
+            self.set_status(f"'{raw}' not found in {version}")
+            return
+        self._display_verse(verse.reference(), verse.text, verse.version)
+        self._verse_lookup_var.set("")
+
+    def _on_bible_version_change(self, version):
+        self._cfg.bible_version = version
+        if self._detector is not None:
+            self._detector.set_version(version)
+        self._persist()
+        self.set_status(f"Bible version: {version}")
+
+    def _on_verse_mode_change(self, mode):
+        self._cfg.verse_mode = mode
+        self._persist()
+        self.set_status(f"Verse mode: {mode}")
+
     # --- display controls --------------------------------------------------
     def _scale_label(self, scale) -> str:
         for label, val in self._SIZE_CHOICES.items():
@@ -825,7 +970,8 @@ class ControlPanel:
         self._controller.stop()
         self._stop_service_meter()
         try:
-            result = export_service(self._controller.deck, out_dir, self._cfg.church_name)
+            result = export_service(self._controller.deck, out_dir, self._cfg.church_name,
+                                    scriptures=self._shown_verses)
             msg = f"Saved:\n{result['pptx']}"
             if result["pdf"]:
                 msg += f"\n{result['pdf']}"
@@ -838,7 +984,8 @@ class ControlPanel:
     # --- shareable summary -------------------------------------------------
     def _summary_text(self) -> str:
         from ..slides.pdf_export import build_text_summary
-        return build_text_summary(self._controller.deck, self._cfg.church_name)
+        return build_text_summary(self._controller.deck, self._cfg.church_name,
+                                  scriptures=self._shown_verses)
 
     def _has_points(self) -> bool:
         if not self._controller.deck.all_points():

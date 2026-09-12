@@ -86,6 +86,7 @@ class SlideWindow:
         self._blank = False
         self._logo_pil = None
         self._logo_tk = None
+        self._verse = None  # (reference, text, version) when a verse is shown
 
         self._win = tk.Toplevel(tk_root)
         self._win.configure(bg=_hex(self._theme["top"]))
@@ -137,6 +138,19 @@ class SlideWindow:
     def render(self, slide, index: int, total: int, live: bool) -> None:
         self._state = (slide, index, total, live)
         self._win.after(0, self._redraw)
+
+    def show_verse(self, reference: str, text: str, version: str = "") -> None:
+        """Take over the screen with a cited verse. clear_verse() returns to the
+        summary. Overrides the summary but not a blank screen."""
+        self._verse = (reference, text, version)
+        self._win.after(0, self._redraw)
+
+    def clear_verse(self) -> None:
+        self._verse = None
+        self._win.after(0, self._redraw)
+
+    def has_verse(self) -> bool:
+        return self._verse is not None
 
     def set_church_name(self, name: str) -> None:
         self._church = name or ""
@@ -255,6 +269,9 @@ class SlideWindow:
     def _redraw(self):
         if self._blank:
             self._draw_blank()
+            return
+        if self._verse is not None:
+            self._draw_verse(*self._verse)
             return
         if self._state is None:
             self._draw_placeholder()
@@ -400,6 +417,38 @@ class SlideWindow:
                 c.create_image(w // 2, h // 2, image=self._logo_tk)
             except Exception as e:  # noqa: BLE001
                 log.warning("logo render failed: %s", e)
+
+    def _draw_verse(self, reference, text, version):
+        c = self._canvas
+        c.delete("all")
+        w, h = self._dims()
+        self._draw_background(w, h)
+        self._draw_header(w, h)
+
+        # Reference heading (accent), verse text (large, wrapped, centered),
+        # version tag in the footer. Shrink the body font to fit long verses.
+        ref_font = self._fs(int(h * 0.075))
+        c.create_text(int(w * 0.5), int(h * 0.24), fill=self._theme["accent"],
+                      font=(self._ff, ref_font, "bold"), text=reference)
+
+        wrap = int(w * 0.82)
+        body_px = self._fs(int(h * 0.075))
+        # measure + shrink so the verse fits between the heading and footer
+        top, bottom = h * 0.34, h * 0.88
+        while body_px > 16:
+            th = self._measure_text(text, body_px, wrap)
+            if top + th <= bottom:
+                break
+            body_px = int(body_px * 0.92)
+        th = self._measure_text(text, body_px, wrap)
+        c.create_text(int(w * 0.5), top + (bottom - top - th) / 2, anchor="n",
+                      fill=self._theme["fg"], font=(self._ff, body_px),
+                      text=text, width=wrap, justify="center")
+
+        if version:
+            c.create_text(int(w * 0.94), int(h * 0.95), anchor="e",
+                          fill=self._theme["muted"],
+                          font=(self._ff, max(13, int(h * 0.022))), text=version)
 
     def _draw_placeholder(self):
         c = self._canvas

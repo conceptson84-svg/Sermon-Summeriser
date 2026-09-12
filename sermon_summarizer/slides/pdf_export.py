@@ -90,7 +90,8 @@ def convert_to_pdf(pptx_path: str | Path) -> Path | None:
     return pdf if pdf.exists() else None
 
 
-def build_pdf_direct(deck, out_path: str | Path, church_name: str = "") -> Path | None:
+def build_pdf_direct(deck, out_path: str | Path, church_name: str = "",
+                     scriptures: list | None = None) -> Path | None:
     """Generate a clean, printable PDF directly with reportlab — no LibreOffice
     needed. Returns the PDF path, or None if reportlab isn't installed."""
     try:
@@ -130,6 +131,18 @@ def build_pdf_direct(deck, out_path: str | Path, church_name: str = "") -> Path 
         if pt.scripture:
             text += (f'  <font color="#3a5bd6" size="12"><i>({pt.scripture})</i></font>')
         story.append(Paragraph(text, point_style))
+
+    refs = _dedupe_scriptures(scriptures)
+    if refs:
+        story.append(Spacer(1, 0.25 * inch))
+        head = ParagraphStyle("SubHead", parent=styles["Heading2"], fontSize=15,
+                              textColor=colors.HexColor("#1c2f73"))
+        story.append(Paragraph("Scriptures referenced", head))
+        for reference, _text, version in refs:
+            story.append(Paragraph(
+                f"&bull;&nbsp;&nbsp;{reference} "
+                f'<font color="#9aa3bd" size="10">({version})</font>', point_style))
+
     story.append(Spacer(1, 0.3 * inch))
     if church_name:
         story.append(Paragraph(f'<font color="#9aa3bd" size="10">Shared from {church_name}</font>',
@@ -138,7 +151,7 @@ def build_pdf_direct(deck, out_path: str | Path, church_name: str = "") -> Path 
     return out_path if out_path.exists() else None
 
 
-def build_text_summary(deck, church_name: str = "") -> str:
+def build_text_summary(deck, church_name: str = "", scriptures: list | None = None) -> str:
     """A clean, shareable plain-text summary (for email / WhatsApp / .txt)."""
     from datetime import datetime
 
@@ -155,13 +168,34 @@ def build_text_summary(deck, church_name: str = "") -> str:
         if pt.scripture:
             bullet += f" ({pt.scripture})"
         lines.append(bullet)
+    refs = _dedupe_scriptures(scriptures)
+    if refs:
+        lines.append("")
+        lines.append("Scriptures referenced:")
+        for reference, _text, _version in refs:
+            lines.append(f"- {reference}")
     lines.append("")
     lines.append("Shared from " + (church_name or "our church"))
     return "\n".join(lines)
 
 
-def export_service(deck, out_dir: str | Path, church_name: str = "") -> dict:
-    """Full end-of-service export. Returns {'pptx': path, 'pdf': path|None}."""
+def _dedupe_scriptures(scriptures: list | None) -> list:
+    if not scriptures:
+        return []
+    seen = set()
+    out = []
+    for item in scriptures:
+        ref = item[0]
+        if ref not in seen:
+            seen.add(ref)
+            out.append(item)
+    return out
+
+
+def export_service(deck, out_dir: str | Path, church_name: str = "",
+                   scriptures: list | None = None) -> dict:
+    """Full end-of-service export. Returns {'pptx': path, 'pdf': path|None}.
+    `scriptures` is an optional list of (reference, text, version) shown live."""
     from datetime import datetime
 
     out_dir = Path(out_dir)
@@ -170,7 +204,8 @@ def export_service(deck, out_dir: str | Path, church_name: str = "") -> dict:
     pptx = build_pptx(deck, out_dir / f"sermon-summary-{stamp}.pptx", church_name)
     # Prefer the dependency-free reportlab PDF; fall back to LibreOffice only if
     # reportlab isn't installed.
-    pdf = build_pdf_direct(deck, out_dir / f"sermon-summary-{stamp}.pdf", church_name)
+    pdf = build_pdf_direct(deck, out_dir / f"sermon-summary-{stamp}.pdf", church_name,
+                           scriptures=scriptures)
     if pdf is None:
         pdf = convert_to_pdf(pptx)
     return {"pptx": pptx, "pdf": pdf}
