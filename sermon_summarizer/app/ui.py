@@ -45,6 +45,8 @@ class ControlPanel:
     # How often the AI summarizes, and how much recent speech it reads each time.
     _INTERVAL_CHOICES = {"15 sec": 15, "30 sec": 30, "1 min": 60, "2 min": 120, "5 min": 300}
     _WINDOW_CHOICES = {"1 min": 60, "2 min": 120, "5 min": 300, "10 min": 600}
+    # Audio chunk length — shorter = verses appear sooner (more CPU, slightly less accurate).
+    _SPEED_CHOICES = {"Fast (2s)": 2.0, "Balanced (3s)": 3.0, "Accurate (5s)": 5.0}
 
     def __init__(self, controller, slide_window, config, export_dir="exports"):
         import tkinter as tk
@@ -297,6 +299,14 @@ class ControlPanel:
                                               self._on_verse_mode_change, width=7)
             self._verse_mode_cb.set(self._cfg.verse_mode or "auto")
             self._verse_mode_cb.pack(side="left", padx=4)
+
+            srow = tk.Frame(bv, bg=UI["panel"]); srow.pack(fill="x", pady=(6, 0))
+            self._label(srow, "Detection speed:").pack(side="left")
+            self._speed_cb = self._combo(srow, self._SPEED_CHOICES.keys(),
+                                         self._on_speed_change, width=14)
+            self._speed_cb.set(self._speed_label(self._cfg.audio_chunk_seconds))
+            self._speed_cb.pack(side="left", padx=4)
+            self._label(srow, "(applies on next Start)").pack(side="left", padx=6)
 
             lrow = tk.Frame(bv, bg=UI["panel"]); lrow.pack(fill="x", pady=(6, 0))
             self._label(lrow, "Look up:").pack(side="left")
@@ -834,6 +844,23 @@ class ControlPanel:
         self._cfg.verse_mode = mode
         self._persist()
         self.set_status(f"Verse mode: {mode}")
+
+    def _speed_label(self, seconds) -> str:
+        for label, val in self._SPEED_CHOICES.items():
+            if abs(val - float(seconds or 3.0)) < 0.01:
+                return label
+        return "Balanced (3s)"
+
+    def _on_speed_change(self, label):
+        secs = self._SPEED_CHOICES.get(label, 3.0)
+        self._cfg.audio_chunk_seconds = secs
+        if self._capture is not None:
+            self._capture.set_chunk_seconds(secs)
+        self._persist()
+        if self._controller.state is ServiceState.RUNNING:
+            self.set_status(f"Detection speed: {label} — applies after Stop/Start")
+        else:
+            self.set_status(f"Detection speed: {label}")
 
     # --- display controls --------------------------------------------------
     def _scale_label(self, scale) -> str:

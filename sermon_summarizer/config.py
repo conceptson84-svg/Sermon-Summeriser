@@ -81,6 +81,7 @@ class Config:
     deepseek_api_key: str = ""
     gemini_api_key: str = ""
     audio_device_index: int | None = None
+    audio_chunk_seconds: float = 3.0   # shorter = verses appear sooner (lower latency)
     whisper_model_size: str = "small"
     whisper_cpu_threads: int = 2
     summarize_interval_seconds: int = 300

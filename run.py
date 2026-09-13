@@ -55,7 +55,8 @@ def main():
               file=sys.stderr)
     transcriber = WhisperTranscriber(
         model_size=cfg.whisper_model_size, cpu_threads=cfg.whisper_cpu_threads)
-    capture = AudioCapture(device_index=cfg.audio_device_index)
+    capture = AudioCapture(device_index=cfg.audio_device_index,
+                           chunk_seconds=cfg.audio_chunk_seconds)
 
     controller = ServiceController(
         capture=capture, transcriber=transcriber, summarizer=summarizer, config=cfg)

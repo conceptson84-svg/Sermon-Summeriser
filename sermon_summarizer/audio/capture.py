@@ -19,7 +19,9 @@ import threading
 log = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000  # Whisper expects 16 kHz mono.
-CHUNK_SECONDS = 5.0  # Transcribe in 5-second chunks.
+# Default transcription chunk length. Shorter = lower latency (verses appear
+# sooner) at a small accuracy/CPU cost; configurable via config.audio_chunk_seconds.
+CHUNK_SECONDS = 3.0
 
 
 def list_input_devices() -> list[dict]:
@@ -53,8 +55,10 @@ def resolve_input_channels(device_index) -> int:
 
 
 class AudioCapture:
-    def __init__(self, device_index: int | None = None, on_status=None):
+    def __init__(self, device_index: int | None = None, on_status=None,
+                 chunk_seconds: float = CHUNK_SECONDS):
         self._device_index = device_index
+        self._chunk_seconds = float(chunk_seconds) if chunk_seconds else CHUNK_SECONDS
         self._on_status = on_status or (lambda msg: None)
         self._queue: "queue.Queue[bytes]" = queue.Queue(maxsize=64)
         self._stream = None
@@ -67,6 +71,10 @@ class AudioCapture:
         """Change the input device. Takes effect the next time the service is
         started (the live stream is not hot-swapped mid-service)."""
         self._device_index = device_index
+
+    def set_chunk_seconds(self, seconds: float) -> None:
+        """Change the transcription chunk length. Applies on the next Start."""
+        self._chunk_seconds = float(seconds) if seconds else CHUNK_SECONDS
 
     def level(self) -> float:
         """Latest input level, 0.0–1.0, for the live activity meter."""
@@ -108,7 +116,7 @@ class AudioCapture:
             self._channels = self._resolve_channels()
             self._stream = sd.InputStream(
                 samplerate=SAMPLE_RATE,
-                blocksize=int(SAMPLE_RATE * CHUNK_SECONDS),
+                blocksize=int(SAMPLE_RATE * self._chunk_seconds),
                 device=self._device_index,
                 channels=self._channels,
                 dtype="int16",

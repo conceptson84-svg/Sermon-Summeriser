@@ -11,6 +11,7 @@
   "api_key": "",
 
   "audio_device_index": null,
+  "audio_chunk_seconds": 3.0,
   "whisper_model_size": "small",
   "whisper_cpu_threads": 2,
   "summarize_interval_seconds": 300,
